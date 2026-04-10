@@ -14,6 +14,7 @@ PLAYER_SPEED = 300.0    # Player horizontal movement speed
 ENEMY_SPEED = 100.0     # Enemy horizontal movement speed
 PLAYER_WIDTH = TILE_SIZE * 0.8
 PLAYER_HEIGHT = TILE_SIZE * 0.9
+BULLET_SPEED = 500.0 
 
 # --- Tilemap Definitions ---
 TILE_AIR = 0
@@ -78,7 +79,28 @@ def parse_level(level):
 
 
 # --- Game Object Classes ---
+class Bullet:
+    """A projectile shot by a player."""
+    def __init__(self, x, y, direction, color, owner):
+        self.rect = Rectangle(x, y, 15, 5)
+        self.vx = direction * BULLET_SPEED
+        self.color = color
+        self.owner = owner # Reference to the Player object that shot this bullet
+        self.is_alive = True
 
+    def update(self, dt, platforms, players):
+        if not self.is_alive: return
+
+        # 1. Apply Movement
+        self.rect.x += self.vx * dt
+
+        # 2. Check Screen/Platform Collision
+        if self.rect.x < 0 or self.rect.x > SCREEN_WIDTH:
+            self.is_alive = False
+            return
+    def draw(self):
+        if self.is_alive:
+            DrawRectangleRec(self.rect, self.color)
 class Player:
     def __init__(self, x, y):
         # Store starting position for reset
@@ -94,6 +116,7 @@ class Player:
         self.vx = 0.0
         self.vy = 0.0
         self.is_grounded = False
+        self.bullet = None
 
     def get_rect(self):
         """Returns the player's collision bounding box (top-left, width, height)."""
@@ -109,12 +132,16 @@ class Player:
             self.vx = -PLAYER_SPEED * sprint_amplifier
         if IsKeyDown(KEY_RIGHT) or IsKeyDown(KEY_D):
             self.vx = PLAYER_SPEED * sprint_amplifier
-        
+        if IsMouseButtonPressed(MOUSE_BUTTON_LEFT):
+            self.bullet = Bullet(self.x + self.width / 2, self.y + self.height / 2, 1, BLUE, self)
 
         # --- Velocity Zeroing for Stability ---
         if self.is_grounded:
             self.vy = 0.0
-            
+        if self.bullet:
+            self.bullet.update(delta_time, level, []) # No platforms or players to check against for now
+            if not self.bullet.is_alive:
+                self.bullet = None    
         # 2. Handle Input (Jump)
         if (IsKeyPressed(KEY_SPACE) or IsKeyPressed(KEY_UP)) and self.is_grounded:
             self.vy = JUMP_VELOCITY
@@ -237,7 +264,8 @@ class Player:
              DrawRectangleLines(int(self.x), int(self.y), int(self.width), int(self.height), WHITE)
         else:
              DrawRectangleLines(int(self.x), int(self.y), int(self.width), int(self.height), GRAY)
-
+        if self.bullet:
+            self.bullet.draw()
 
 class Enemy:
     def __init__(self, x, y):
@@ -418,7 +446,6 @@ def main():
         # --- Update ---
         if game_state == "PLAYING":
             player.update(delta_time, game_level)
-            
             # Update Enemies
             for enemy in enemies:
                 enemy.update(delta_time, game_level)
